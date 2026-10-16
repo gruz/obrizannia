@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Version.cs from tag
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}" -replace '^v',''
+          # AssemblyVersion wants major.minor.build.revision; pad short tags to 4 parts
+          $parts = $tag.Split('.')
+          $asmVer = ($parts + @('0','0','0'))[0..3] -join '.'
+          $asm = @(
+            'using System.Reflection;'
+            '[assembly: AssemblyTitle("Mp4TailWatcher")]'
+            '[assembly: AssemblyProduct("Mp4TailWatcher")]'
+            '[assembly: AssemblyCopyright("2025")]'
+            "[assembly: AssemblyVersion(""$asmVer"")]"
+            "[assembly: AssemblyFileVersion(""$asmVer"")]"
+            "static class BuildInfo { public const string Version = ""$tag""; }"
+          )
+          Set-Content -Encoding ascii -Path Version.cs -Value ($asm -join "`n")
+
+      - name: Build Mp4TailWatcher.exe
+        shell: pwsh
+        run: |
+          $csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          & $csc /nologo /target:winexe /platform:anycpu /optimize+ `
+            /out:"Mp4TailWatcher.exe" "Mp4TailWatcher.cs" "Version.cs" `
+            /win32manifest:"Mp4TailWatcher.exe.manifest" `
+            /r:System.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll `
+            /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            Mp4TailWatcher.exe `
+            --title "Mp4TailWatcher ${{ github.ref_name }}" `
+            --generate-notes
