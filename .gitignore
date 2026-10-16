@@ -1,0 +1,10 @@
+# built locally / downloaded on first run - releases are built by CI
+Mp4TailWatcher.exe
+Version.cs
+ffmpeg.exe
+*.zip
+
+# generated outputs / user config
+*_last30.mp4
+Mp4TailWatcher.log
+Mp4TailWatcher.ini
